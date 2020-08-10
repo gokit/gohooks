@@ -8,14 +8,16 @@ import (
 )
 
 // Filter 接口 - 对输入的参数进行过滤，返回值将作为下一个 Filter 的第一个入参
-type Filter func(interface{}, ...interface{}) (interface{}, error)
+type Filter func(data interface{}) (interface{}, error)
 
 // Action 接口
-type Action func(...interface{})
+type Action func(data interface{})
 
 type hooks struct {
-	filters map[string]map[int][]Filter
-	actions map[string]map[int][]Action
+	filters   map[string]map[int][]Filter
+	actions   map[string]map[int][]Action
+	actionSet map[string]struct{}
+	filterSet map[string]struct{}
 }
 
 // 默认排序
@@ -26,7 +28,7 @@ const AllPriority = 0
 
 // 添加 Filter
 // priority 建议使用大于 0 的值
-func (h *hooks) AddFilter(tag string, filter Filter, priority int) bool {
+func (h *hooks) AddFilter(tag string, filter Filter, priorites ...int) bool {
 
 	if h.filters == nil {
 		h.filters = make(map[string]map[int][]Filter)
@@ -36,18 +38,34 @@ func (h *hooks) AddFilter(tag string, filter Filter, priority int) bool {
 		h.filters[tag] = make(map[int][]Filter)
 	}
 
+	priority := DefaultPriority
+
+	if len(priorites) > 0 {
+		priority = priorites[0]
+	}
+
 	if _, ok := h.filters[tag][priority]; !ok {
 		h.filters[tag][priority] = []Filter{}
 	}
 
+	// 唯一标识
+	idx := fmt.Sprintf("%s:%v:%d", tag, filter, priority)
+
+	// 如果 tag:filter:priority 已存在则跳过
+	if _, ok := h.filterSet[idx]; ok {
+		return false
+	}
+
 	h.filters[tag][priority] = append(h.filters[tag][priority], filter)
+
+	h.filterSet[idx] = struct{}{}
 
 	return true
 }
 
 // 移除指定 tag 中指针相同并且排序相同的 Filter
-// priority 为 0 则忽略 priority 并移除 tag 下所有匹配的 Filter
-func (h *hooks) RemoveFilter(tag string, filter Filter, priority int) bool {
+// priorites 为 0 则忽略 priority 并移除 tag 下所有匹配的 Filter
+func (h *hooks) RemoveFilter(tag string, filter Filter, priorites ...int) bool {
 	if h.filters == nil {
 		return false
 	}
@@ -56,39 +74,45 @@ func (h *hooks) RemoveFilter(tag string, filter Filter, priority int) bool {
 		return false
 	}
 
-	if _, ok := h.filters[tag][priority]; !ok && priority != AllPriority {
-		return false
+	if len(priorites) == 0 {
+		priorites = append(priorites, AllPriority)
 	}
-
-	filterPtr := fmt.Sprintf("%v", filter)
 
 	ok := false
 
-	if priority == AllPriority {
+	for _, priority := range priorites {
+		if _, ok := h.filters[tag][priority]; !ok && priority != AllPriority {
+			continue
+		}
 
-		for p, filters := range h.filters[tag] {
+		filterPtr := fmt.Sprintf("%v", filter)
 
-			for i, f := range filters {
+		if priority == AllPriority {
 
-				fPtr := fmt.Sprintf("%v", f)
+			for p, filters := range h.filters[tag] {
 
-				if filterPtr == fPtr {
-					h.filters[tag][p] = append(h.filters[tag][p][:i], h.filters[tag][p][i+1:]...)
-					ok = true
+				for i, f := range filters {
+
+					fPtr := fmt.Sprintf("%v", f)
+
+					if filterPtr == fPtr {
+						h.filters[tag][p] = append(h.filters[tag][p][:i], h.filters[tag][p][i+1:]...)
+						ok = true
+					}
+
 				}
 
 			}
 
-		}
+		} else {
+			for i, f := range h.filters[tag][priority] {
 
-	} else {
-		for i, f := range h.filters[tag][priority] {
+				fPtr := fmt.Sprintf("%v", f)
 
-			fPtr := fmt.Sprintf("%v", f)
-
-			if filterPtr == fPtr {
-				h.filters[tag][priority] = append(h.filters[tag][priority][:i], h.filters[tag][priority][i+1:]...)
-				ok = true
+				if filterPtr == fPtr {
+					h.filters[tag][priority] = append(h.filters[tag][priority][:i], h.filters[tag][priority][i+1:]...)
+					ok = true
+				}
 			}
 		}
 	}
@@ -97,8 +121,8 @@ func (h *hooks) RemoveFilter(tag string, filter Filter, priority int) bool {
 }
 
 // 移除指定 tag 中 指定 priority 的 Filter
-// priority 为 0 则忽略 priority 并移除 tag 下所有匹配的 Filter
-func (h *hooks) RemoveAllFilter(tag string, priority int) bool {
+// priorites 为 0 则忽略 priority 并移除 tag 下所有匹配的 Filter
+func (h *hooks) RemoveAllFilter(tag string, priorites ...int) bool {
 
 	if h.filters == nil {
 		return false
@@ -108,16 +132,22 @@ func (h *hooks) RemoveAllFilter(tag string, priority int) bool {
 		return false
 	}
 
-	if _, ok := h.filters[tag][priority]; !ok && priority != AllPriority {
-		return false
+	if len(priorites) == 0 {
+		priorites = append(priorites, AllPriority)
 	}
 
-	if priority == AllPriority {
-		for p, _ := range h.filters[tag] {
-			h.filters[tag][p] = nil
+	for _, priority := range priorites {
+		if _, ok := h.filters[tag][priority]; !ok && priority != AllPriority {
+			continue
 		}
-	} else {
-		h.filters[tag][priority] = nil
+
+		if priority == AllPriority {
+			for p, _ := range h.filters[tag] {
+				h.filters[tag][p] = nil
+			}
+		} else {
+			h.filters[tag][priority] = nil
+		}
 	}
 
 	return true
@@ -152,11 +182,13 @@ func (h *hooks) HasFilter(tag string, filter Filter) ([]int, bool) {
 
 	}
 
+	sort.Ints(priories)
+
 	return priories, len(priories) > 0
 }
 
 // 执行 Filter
-func (h *hooks) ApplyFilter(tag string, data interface{}, params ...interface{}) (interface{}, error) {
+func (h *hooks) ApplyFilter(tag string, data interface{}) (interface{}, error) {
 	if _, ok := h.filters[tag]; !ok {
 		return nil, errors.New("")
 	}
@@ -167,7 +199,7 @@ func (h *hooks) ApplyFilter(tag string, data interface{}, params ...interface{})
 		keys = append(keys, key)
 	}
 
-	sort.Ints(keys[:])
+	sort.Ints(keys)
 
 	var e error
 
@@ -179,8 +211,7 @@ func (h *hooks) ApplyFilter(tag string, data interface{}, params ...interface{})
 		}
 
 		for _, filter := range filters {
-			data, e = filter(data, params...)
-
+			data, e = filter(data)
 			if e != nil {
 				return data, e
 			}
@@ -192,7 +223,7 @@ func (h *hooks) ApplyFilter(tag string, data interface{}, params ...interface{})
 
 // 添加 Action
 // priority 建议使用大于 0 的值
-func (h *hooks) AddAction(tag string, action Action, priority int) bool {
+func (h *hooks) AddAction(tag string, action Action, priorites ...int) bool {
 
 	if h.actions == nil {
 		h.actions = make(map[string]map[int][]Action)
@@ -202,18 +233,34 @@ func (h *hooks) AddAction(tag string, action Action, priority int) bool {
 		h.actions[tag] = make(map[int][]Action)
 	}
 
+	priority := DefaultPriority
+
+	if len(priorites) > 0 {
+		priority = priorites[0]
+	}
+
 	if _, ok := h.actions[tag][priority]; !ok {
 		h.actions[tag][priority] = []Action{}
 	}
 
+	// 唯一标识
+	idx := fmt.Sprintf("%s:%v:%d", tag, action, priority)
+
+	// 如果 tag:action:priority 已存在则跳过
+	if _, ok := h.actionSet[idx]; ok {
+		return false
+	}
+
 	h.actions[tag][priority] = append(h.actions[tag][priority], action)
+
+	h.actionSet[idx] = struct{}{}
 
 	return true
 }
 
 // 移除指定 tag 中指针相同并且排序相同的 Action
-// priority 为 0 则忽略 priority 并移除 tag 下所有匹配的 Action
-func (h *hooks) RemoveAction(tag string, action Action, priority int) bool {
+// priorites 为 0 则忽略 priority 并移除 tag 下所有匹配的 Action
+func (h *hooks) RemoveAction(tag string, action Action, priorites ...int) bool {
 	if h.actions == nil {
 		return false
 	}
@@ -222,39 +269,44 @@ func (h *hooks) RemoveAction(tag string, action Action, priority int) bool {
 		return false
 	}
 
-	if _, ok := h.actions[tag][priority]; !ok && priority != AllPriority {
-		return false
+	if len(priorites) == 0 {
+		priorites = append(priorites, AllPriority)
 	}
-
-	actionPtr := fmt.Sprintf("%v", action)
 
 	ok := false
 
-	if priority == AllPriority {
+	for _, priority := range priorites {
 
-		for p, actions := range h.actions[tag] {
+		if _, ok := h.actions[tag][priority]; !ok && priority != AllPriority {
+			continue
+		}
 
-			for i, a := range actions {
+		actionPtr := fmt.Sprintf("%v", action)
+
+		if priority == AllPriority {
+
+			for p, actions := range h.actions[tag] {
+
+				for i, a := range actions {
+
+					aPtr := fmt.Sprintf("%v", a)
+
+					if actionPtr == aPtr {
+						h.actions[tag][p] = append(h.actions[tag][p][:i], h.actions[tag][p][i+1:]...)
+						ok = true
+					}
+				}
+			}
+
+		} else {
+			for i, a := range h.actions[tag][priority] {
 
 				aPtr := fmt.Sprintf("%v", a)
 
 				if actionPtr == aPtr {
-					h.actions[tag][p] = append(h.actions[tag][p][:i], h.actions[tag][p][i+1:]...)
+					h.actions[tag][priority] = append(h.actions[tag][priority][:i], h.actions[tag][priority][i+1:]...)
 					ok = true
 				}
-
-			}
-
-		}
-
-	} else {
-		for i, a := range h.actions[tag][priority] {
-
-			aPtr := fmt.Sprintf("%v", a)
-
-			if actionPtr == aPtr {
-				h.actions[tag][priority] = append(h.actions[tag][priority][:i], h.actions[tag][priority][i+1:]...)
-				ok = true
 			}
 		}
 	}
@@ -263,8 +315,8 @@ func (h *hooks) RemoveAction(tag string, action Action, priority int) bool {
 }
 
 // 移除指定 tag 中 指定 priority 的 Action
-// priority 为 0 则忽略 priority 并移除 tag 下所有匹配的 Action
-func (h *hooks) RemoveAllAction(tag string, priority int) bool {
+// priorites 为 0 则忽略 priority 并移除 tag 下所有匹配的 Action
+func (h *hooks) RemoveAllAction(tag string, priorites ...int) bool {
 
 	if h.actions == nil {
 		return false
@@ -274,16 +326,22 @@ func (h *hooks) RemoveAllAction(tag string, priority int) bool {
 		return false
 	}
 
-	if _, ok := h.actions[tag][priority]; !ok && priority != AllPriority {
-		return false
+	if len(priorites) == 0 {
+		priorites = append(priorites, AllPriority)
 	}
 
-	if priority == AllPriority {
-		for p, _ := range h.actions[tag] {
-			h.actions[tag][p] = nil
+	for _, priority := range priorites {
+		if _, ok := h.actions[tag][priority]; !ok && priority != AllPriority {
+			continue
 		}
-	} else {
-		h.actions[tag][priority] = nil
+
+		if priority == AllPriority {
+			for p, _ := range h.actions[tag] {
+				h.actions[tag][p] = nil
+			}
+		} else {
+			h.actions[tag][priority] = nil
+		}
 	}
 
 	return true
@@ -322,7 +380,7 @@ func (h *hooks) HasAction(tag string, action Action) ([]int, bool) {
 }
 
 // 执行 Action
-func (h *hooks) DoAction(tag string, params ...interface{}) {
+func (h *hooks) DoAction(tag string, data interface{}) {
 	if _, ok := h.actions[tag]; !ok {
 		return
 	}
@@ -343,7 +401,7 @@ func (h *hooks) DoAction(tag string, params ...interface{}) {
 		}
 
 		for _, action := range actions {
-			action(params...)
+			action(data)
 		}
 	}
 }
@@ -355,12 +413,18 @@ var instance *hooks
 // 获取 hooks 的单例
 func Instance() *hooks {
 	once.Do(func() {
-		instance = &hooks{}
+		instance = &hooks{
+			filterSet: map[string]struct{}{},
+			actionSet: map[string]struct{}{},
+		}
 	})
 	return instance
 }
 
 // 新建一个 hooks 实例
-func NewInstance() *hooks {
-	return &hooks{}
+func New() *hooks {
+	return &hooks{
+		filterSet: map[string]struct{}{},
+		actionSet: map[string]struct{}{},
+	}
 }

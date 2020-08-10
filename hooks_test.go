@@ -11,7 +11,7 @@ import (
 	"testing"
 )
 
-var filter = func(data interface{}, params ...interface{}) (interface{}, error) {
+var filter = func(data interface{}) (interface{}, error) {
 
 	switch data := data.(type) {
 	case int:
@@ -27,19 +27,19 @@ var filter = func(data interface{}, params ...interface{}) (interface{}, error) 
 
 var actionNum = 0
 
-var action = func(data ...interface{}) {
-	switch data := data[0].(type) {
+var action = func(data interface{}) {
+	switch data := data.(type) {
 	case int:
 		actionNum += data
 	}
 }
 
 func TestFilter(t *testing.T) {
-	hooks := Instance()
+	hooks := New()
 
-	hooks.AddFilter("test", filter, DefaultPriority)
-	hooks.AddFilter("test", filter, DefaultPriority)
-	hooks.AddFilter("test", filter, DefaultPriority)
+	hooks.AddFilter("test", filter, 1)
+	hooks.AddFilter("test", filter, 2)
+	hooks.AddFilter("test", filter, 3)
 
 	data, _ := hooks.ApplyFilter("test", 0)
 
@@ -49,7 +49,7 @@ func TestFilter(t *testing.T) {
 }
 
 func TestHasFilter(t *testing.T) {
-	hooks := Instance()
+	hooks := New()
 
 	hooks.AddFilter("test", filter, 1)
 	hooks.AddFilter("test", filter, 2)
@@ -59,13 +59,13 @@ func TestHasFilter(t *testing.T) {
 
 	priorites, ok := hooks.HasFilter("test", filter)
 
-	if len(priorites) != 5 || ok == false {
-		t.Error(`hooks.HasFilter("test", filter) != [1,2,3,4,4]`, priorites)
+	if len(priorites) != 4 || ok == false {
+		t.Error(`hooks.HasFilter("test", filter) != [1,2,3,4]`, priorites)
 	}
 }
 
 func TestRemoveFilter(t *testing.T) {
-	hooks := Instance()
+	hooks := New()
 
 	hooks.AddFilter("test", filter, 1)
 	hooks.AddFilter("test", filter, 2)
@@ -74,7 +74,7 @@ func TestRemoveFilter(t *testing.T) {
 	data, e := hooks.ApplyFilter("test", 0)
 
 	if data != 3 {
-		t.Error(`hooks.ApplyFilter("test", 0) != 3`, e)
+		t.Error(`hooks.ApplyFilter("test", 0) != 3`, e, data)
 	}
 
 	{
@@ -90,7 +90,7 @@ func TestRemoveFilter(t *testing.T) {
 }
 
 func TestRemoveAllFilter(t *testing.T) {
-	hooks := Instance()
+	hooks := New()
 
 	hooks.AddFilter("test", filter, 1)
 	hooks.AddFilter("test", filter, 2)
@@ -115,14 +115,14 @@ func TestRemoveAllFilter(t *testing.T) {
 }
 
 func TestAction(t *testing.T) {
-	hooks := Instance()
+	hooks := New()
 
 	// 重置
 	actionNum = 0
 
-	hooks.AddAction("test", action, DefaultPriority)
-	hooks.AddAction("test", action, DefaultPriority)
-	hooks.AddAction("test", action, DefaultPriority)
+	hooks.AddAction("test", action, 1)
+	hooks.AddAction("test", action, 2)
+	hooks.AddAction("test", action, 3)
 
 	hooks.DoAction("test", 1)
 
@@ -132,7 +132,7 @@ func TestAction(t *testing.T) {
 }
 
 func TestHasAction(t *testing.T) {
-	hooks := Instance()
+	hooks := New()
 
 	hooks.AddAction("test", action, 1)
 	hooks.AddAction("test", action, 2)
@@ -142,13 +142,13 @@ func TestHasAction(t *testing.T) {
 
 	priorites, ok := hooks.HasAction("test", action)
 
-	if len(priorites) != 5 || ok == false {
-		t.Error(`hooks.HasAction("test", filter) != [1,2,3,4,4]`, priorites)
+	if len(priorites) != 4 || ok == false {
+		t.Error(`hooks.HasAction("test", filter) != [1,2,3,4]`, priorites)
 	}
 }
 
 func TestRemoveAction(t *testing.T) {
-	hooks := Instance()
+	hooks := New()
 
 	// 重置
 	actionNum = 0
@@ -179,7 +179,7 @@ func TestRemoveAction(t *testing.T) {
 }
 
 func TestRemoveAllAction(t *testing.T) {
-	hooks := Instance()
+	hooks := New()
 
 	// 重置
 	actionNum = 0

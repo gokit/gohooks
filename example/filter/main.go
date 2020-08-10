@@ -15,7 +15,7 @@ import (
 func main() {
 	hooks := gohooks.Instance()
 
-	hooks.AddFilter("increase", func(data interface{}, params ...interface{}) (interface{}, error) {
+	hooks.AddFilter("increase", func(data interface{}) (interface{}, error) {
 
 		switch data := data.(type) {
 		case int:
@@ -23,9 +23,21 @@ func main() {
 		}
 
 		return data, nil
-	}, gohooks.DefaultPriority)
+	})
 
-	data, e :=hooks.ApplyFilter("increase", 1)
+	hooks.AddFilter("increase", func(data interface{}) (interface{}, error) {
+
+		switch data := data.(type) {
+		case int:
+			return data + 1, nil
+		}
+
+		return data, nil
+	})
+
+	hooks.RemoveAllFilter("increase", 10)
+
+	data, e :=hooks.ApplyFilter("increase", 0)
 
 	fmt.Println(data, e)
 }

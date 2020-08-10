@@ -33,7 +33,7 @@ package instance
 import "github.com/gokit/gohooks"
 
 func main()  {
-	hooks := gohooks.NewInstance()
+	hooks := gohooks.New()
 	// ...
 }
 ```
@@ -51,7 +51,7 @@ import (
 func main()  {
 	hooks := gohooks.Instance()
 
-	hooks.AddFilter("increase", func(data interface{}, params ...interface{}) (interface{}, error) {
+	hooks.AddFilter("increase", func(data interface{}) (interface{}, error) {
     
     		switch data := data.(type) {
     		case int:
@@ -59,7 +59,7 @@ func main()  {
     		}
     
     		return data, nil
-	}, gohooks.DefaultPriority)
+	})
     
 	data, e :=hooks.ApplyFilter("increase", 1)
     
@@ -80,13 +80,13 @@ import (
 func main() {
 	hooks := gohooks.Instance()
 
-	hooks.AddAction("test", func(params ...interface{}) {
+	hooks.AddAction("test", func(data interface{}) {
 
-		fmt.Println(params)
+		fmt.Println(data)
 
-	}, gohooks.DefaultPriority)
+	})
 
-	hooks.DoAction("test", 1, 2, 3, 4)
+	hooks.DoAction("test", 1)
 }
 ```
 
@@ -96,21 +96,21 @@ func main() {
 // 获取全局 hooks 单例
 gohooks.Instance()
 // 获取新的 hooks 实例
-gohooks.NewInstance()
+gohooks.New()
 // 添加 Filter
-hooks.AddFilter(tag, filter, priority)
+hooks.AddFilter(tag, filter)
 // 移除 Filter
-hooks.RemoveFilter(tag, filter, priority)
+hooks.RemoveFilter(tag, filter)
 // 移除所有 Filter
-hooks.RemoveAllFilter(tag, priority)
+hooks.RemoveAllFilter(tag)
 // 添加 Filter
 hooks.HasFilter(tag, filter)
 // 添加 Action
-hooks.AddAction(tag, action, priority)
+hooks.AddAction(tag, action)
 // 移除 Action
-hooks.RemoveAction(tag, action, priority)
+hooks.RemoveAction(tag, action)
 // 移除所有 Action
-hooks.RemoveAllAction(tag, priority)
+hooks.RemoveAllAction(tag)
 // 添加 Action
 hooks.HasAction(tag, action)
 ```

@@ -15,11 +15,12 @@ import (
 func main() {
 	hooks := gohooks.Instance()
 
-	hooks.AddAction("test", func(params ...interface{}) {
+	test := func(data interface{}) {
+		fmt.Println(data)
+	}
 
-		fmt.Println(params)
+	hooks.AddAction("test", test)
+	hooks.AddAction("test", test)
 
-	}, gohooks.DefaultPriority)
-
-	hooks.DoAction("test", 1, 2, 3, 4)
+	hooks.DoAction("test", 1)
 }

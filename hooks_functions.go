@@ -37,7 +37,7 @@ func HasFilter(tag string, filter Filter) ([]int, bool) {
 // 执行 Filter
 func ApplyFilter(tag string, data interface{}, params ...interface{}) (interface{}, error) {
 	hooks := Instance()
-	return hooks.ApplyFilter(tag, data, params...)
+	return hooks.ApplyFilter(tag, data)
 }
 
 // 添加 Action
@@ -68,7 +68,7 @@ func HasAction(tag string, action Action) ([]int, bool) {
 }
 
 // 执行 Action
-func DoAction(tag string, params ...interface{}) {
+func DoAction(tag string, data interface{}) {
 	hooks := Instance()
-	hooks.DoAction(tag, params...)
+	hooks.DoAction(tag, data)
 }
