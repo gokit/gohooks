@@ -15,7 +15,7 @@ $ go get -u github.com/gokit/gohooks
 1. 获取 hooks 全局单例实例
 
 ```go
-package instance
+package main
 
 import "github.com/gokit/gohooks"
 
@@ -28,7 +28,7 @@ func main()  {
 2. 获取一个新的 hooks 实例
 
 ```go
-package instance
+package main
 
 import "github.com/gokit/gohooks"
 
@@ -49,7 +49,7 @@ import (
 )
 
 func main()  {
-	hooks := gohooks.Instance()
+	hooks := gohooks.New()
 
 	hooks.AddFilter("increase", func(data interface{}) (interface{}, error) {
     
@@ -78,7 +78,7 @@ import (
 )
 
 func main() {
-	hooks := gohooks.Instance()
+	hooks := gohooks.New()
 
 	hooks.AddAction("test", func(data interface{}) {
 
