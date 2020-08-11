@@ -104,6 +104,13 @@ func (h *hooks) RemoveFilter(tag string, filter Filter, priorites ...int) bool {
 
 			}
 
+			// 清空
+			for k, _ := range h.filterSet {
+				delete(h.filterSet, k)
+			}
+
+			break
+
 		} else {
 			for i, f := range h.filters[tag][priority] {
 
@@ -111,6 +118,7 @@ func (h *hooks) RemoveFilter(tag string, filter Filter, priorites ...int) bool {
 
 				if filterPtr == fPtr {
 					h.filters[tag][priority] = append(h.filters[tag][priority][:i], h.filters[tag][priority][i+1:]...)
+					delete(h.filterSet, fmt.Sprintf("%s:%v:%d", tag, filter, priority))
 					ok = true
 				}
 			}
@@ -148,6 +156,11 @@ func (h *hooks) RemoveAllFilter(tag string, priorites ...int) bool {
 		} else {
 			h.filters[tag][priority] = nil
 		}
+	}
+
+	// 清空
+	for k, _ := range h.filterSet {
+		delete(h.filterSet, k)
 	}
 
 	return true
@@ -298,6 +311,13 @@ func (h *hooks) RemoveAction(tag string, action Action, priorites ...int) bool {
 				}
 			}
 
+			// 清空
+			for k, _ := range h.actionSet {
+				delete(h.actionSet, k)
+			}
+
+			break
+
 		} else {
 			for i, a := range h.actions[tag][priority] {
 
@@ -305,6 +325,7 @@ func (h *hooks) RemoveAction(tag string, action Action, priorites ...int) bool {
 
 				if actionPtr == aPtr {
 					h.actions[tag][priority] = append(h.actions[tag][priority][:i], h.actions[tag][priority][i+1:]...)
+					delete(h.actionSet, fmt.Sprintf("%s:%v:%d", tag, action, priority))
 					ok = true
 				}
 			}
@@ -342,6 +363,11 @@ func (h *hooks) RemoveAllAction(tag string, priorites ...int) bool {
 		} else {
 			h.actions[tag][priority] = nil
 		}
+	}
+
+	// 清空
+	for k, _ := range h.actionSet {
+		delete(h.actionSet, k)
 	}
 
 	return true
